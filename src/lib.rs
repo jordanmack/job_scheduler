@@ -58,17 +58,19 @@
 
 extern crate chrono;
 extern crate cron;
+extern crate uuid;
 
 use chrono::DateTime;
 use chrono::Utc;
 pub use cron::Schedule;
-
+use uuid::Uuid;
 
 /// A schedulable `Job`.
 pub struct Job<'a> {
     schedule: Schedule,
     run: Box<(FnMut() -> ()) + 'a>,
     last_tick: Option<DateTime<Utc>>,
+    job_id: String,
 }
 
 impl<'a> Job<'a> {
@@ -87,8 +89,8 @@ impl<'a> Job<'a> {
         Job {
             schedule,
             run: Box::new(run),
-
             last_tick: None,
+            job_id: Uuid::new_v4().to_string(),
         }
     }
 
@@ -130,8 +132,36 @@ impl<'a> JobScheduler<'a> {
     ///     println!("I get executed every 10 seconds!");
     /// }));
     /// ```
-    pub fn add(&mut self, job: Job<'a>) {
-        self.jobs.push(job)
+    pub fn add(&mut self, job: Job<'a>) -> String {
+        let job_id = job.job_id.clone();
+        self.jobs.push(job);
+
+        job_id
+    }
+
+    /// Remove a job from the `JobScheduler`
+    ///
+    /// ```rust,ignore
+    /// let mut sched = JobScheduler::new();
+    /// let job_id = sched.add(Job::new("1/10 * * * * *".parse().unwrap(), || {
+    ///     println!("I get executed every 10 seconds!");
+    /// }));
+    /// sched.remove(job_id);
+    /// ```
+    pub fn remove(&mut self, job_id: &str) -> bool {
+        let mut found_index = None;
+        for (i, job) in self.jobs.iter().enumerate() {
+            if job.job_id == job_id {
+                found_index = Some(i);
+                break;
+            }
+        }
+
+        if found_index.is_some() {
+            self.jobs.remove(found_index.unwrap());
+        }
+
+        found_index.is_some()
     }
 
     /// The `tick` method increments time for the JobScheduler and executes
